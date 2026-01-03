@@ -1,14 +1,33 @@
 pub struct Registers {
-    a: u8,
-    b: u8,
-    c: u8,
-    d: u8,
-    e: u8,
-    h: u8,
-    l: u8,
-    sp: u16,
-    pc: u16,
-    f: u8,
+    pub a: u8,
+    pub b: u8,
+    pub c: u8,
+    pub d: u8,
+    pub e: u8,
+    pub h: u8,
+    pub l: u8,
+    pub sp: u16,
+    pub pc: u16,
+    pub f: u8,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Register {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Register16 {
+    BC,
+    DE,
+    SP,
+    HL
 }
 
 pub struct RegisterFlags;
@@ -33,6 +52,41 @@ impl Registers {
             pc: 0,
             sp: 0,
             f: 0,
+        }
+    }
+
+    pub fn read_reg(&self, reg: Register) -> u8 {
+        match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => unreachable!()
+        }
+    }
+
+    pub fn write_reg(&mut self, reg: Register, value: u8) {
+        match reg {
+            Register::A => self.a = value,
+            Register::B => self.b = value,
+            Register::C => self.c = value,
+            Register::D => self.d = value,
+            Register::E => self.e = value,
+            Register::H => self.h = value,
+            Register::L => self.l = value,
+            _ => unreachable!()
+        }
+    }
+
+    pub fn read_reg16(&self, reg: Register16) -> u16 {
+        match reg {
+            Register16::BC => self.read_bc(),
+            Register16::DE => self.read_de(),
+            Register16::HL => self.read_hl(),
+            _ => panic!("Cannot read 8-bit register as 16-bit"),
         }
     }
 
@@ -76,6 +130,16 @@ impl Registers {
         let lo = value as u8;
 
         (hi, lo)
+    }
+
+    pub(crate) fn write_reg16(&mut self, reg: Register16, value: u16)  {
+        match reg {
+            Register16::BC => self.write_bc(value),
+            Register16::DE => self.write_de(value),
+            Register16::HL => self.write_hl(value),
+            Register16::SP => self.sp = value,
+            _ => unreachable!(),
+        }
     }
 }
 
