@@ -1,3 +1,5 @@
+use crate::utils;
+
 pub struct Registers {
     pub a: u8,
     pub b: u8,
@@ -8,35 +10,51 @@ pub struct Registers {
     pub l: u8,
     pub sp: u16,
     pub pc: u16,
-    pub f: u8,
+    pub f: RegFlags,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Register {
+pub enum Reg {
     A,
     B,
     C,
     D,
     E,
     H,
-    L
+    L,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Register16 {
+pub enum Reg16 {
     BC,
     DE,
     SP,
-    HL
+    HL,
 }
 
-pub struct RegisterFlags;
+pub struct RegFlags {
+    pub carry: bool,
+    pub zero: bool,
+    pub half_carry: bool,
+    pub subtract: bool,
+}
 
-impl RegisterFlags {
-    const Z: u8 = 1 << 7; //Zero = 10000000
-    const N: u8 = 1 << 6; //Subtract = 01000000
-    const H: u8 = 1 << 5; //Half Carry = 001000000
-    const C: u8 = 1 << 4; //Carry = 00010000
+impl RegFlags {
+    pub fn new() -> Self {
+        RegFlags {
+            carry: false,
+            zero: false,
+            half_carry: false,
+            subtract: false,
+        }
+    }
+}
+
+pub enum Flag {
+    Z,
+    N,
+    H,
+    C,
 }
 
 impl Registers {
@@ -51,47 +69,57 @@ impl Registers {
             l: 0,
             pc: 0,
             sp: 0,
-            f: 0,
+            f: RegFlags::new(),
         }
     }
 
-    pub fn read_reg(&self, reg: Register) -> u8 {
+    pub fn read_reg(&self, reg: Reg) -> u8 {
         match reg {
-            Register::A => self.a,
-            Register::B => self.b,
-            Register::C => self.c,
-            Register::D => self.d,
-            Register::E => self.e,
-            Register::H => self.h,
-            Register::L => self.l,
-            _ => unreachable!()
+            Reg::A => self.a,
+            Reg::B => self.b,
+            Reg::C => self.c,
+            Reg::D => self.d,
+            Reg::E => self.e,
+            Reg::H => self.h,
+            Reg::L => self.l,
+            _ => unreachable!(),
         }
     }
 
-    pub fn write_reg(&mut self, reg: Register, value: u8) {
+    pub fn write_reg(&mut self, reg: Reg, value: u8) {
         match reg {
-            Register::A => self.a = value,
-            Register::B => self.b = value,
-            Register::C => self.c = value,
-            Register::D => self.d = value,
-            Register::E => self.e = value,
-            Register::H => self.h = value,
-            Register::L => self.l = value,
-            _ => unreachable!()
+            Reg::A => self.a = value,
+            Reg::B => self.b = value,
+            Reg::C => self.c = value,
+            Reg::D => self.d = value,
+            Reg::E => self.e = value,
+            Reg::H => self.h = value,
+            Reg::L => self.l = value,
+            _ => unreachable!(),
         }
     }
 
-    pub fn read_reg16(&self, reg: Register16) -> u16 {
+    pub fn read_reg16(&self, reg: Reg16) -> u16 {
         match reg {
-            Register16::BC => self.read_bc(),
-            Register16::DE => self.read_de(),
-            Register16::HL => self.read_hl(),
+            Reg16::BC => self.read_bc(),
+            Reg16::DE => self.read_de(),
+            Reg16::HL => self.read_hl(),
             _ => panic!("Cannot read 8-bit register as 16-bit"),
         }
     }
 
+    pub fn write_reg16(&mut self, reg: Reg16, value: u16) {
+        match reg {
+            Reg16::BC => self.write_bc(value),
+            Reg16::DE => self.write_de(value),
+            Reg16::HL => self.write_hl(value),
+            Reg16::SP => self.sp = value,
+            _ => unreachable!(),
+        }
+    }
+
     pub fn write_bc(&mut self, value: u16) {
-        (self.b, self.c) = Self::split_hi_lo(value);
+        (self.b, self.c) = utils::split_hi_lo(value);
     }
 
     pub fn read_bc(&self) -> u16 {
@@ -99,7 +127,7 @@ impl Registers {
     }
 
     pub fn write_hl(&mut self, value: u16) {
-        (self.h, self.l) = Self::split_hi_lo(value);
+        (self.h, self.l) = utils::split_hi_lo(value);
     }
 
     pub fn read_hl(&self) -> u16 {
@@ -107,53 +135,42 @@ impl Registers {
     }
 
     pub fn write_de(&mut self, value: u16) {
-        (self.d, self.e) = Self::split_hi_lo(value);
+        (self.d, self.e) = utils::split_hi_lo(value);
     }
 
     pub fn read_de(&self) -> u16 {
         u16::from_be_bytes([self.d, self.e])
     }
 
-    pub fn write_af(&mut self, value: u16) {
-        let (hi, lo) = Self::split_hi_lo(value);
-
-        self.a = hi;
-        self.f = lo & 0xF0;
-    }
-
-    pub fn read_af(&self) -> u16 {
-        u16::from_be_bytes([self.a, self.f])
-    }
-
-    fn split_hi_lo(value: u16) -> (u8, u8) {
-        let hi = (value >> 8) as u8;
-        let lo = value as u8;
-
-        (hi, lo)
-    }
-
-    pub(crate) fn write_reg16(&mut self, reg: Register16, value: u16)  {
-        match reg {
-            Register16::BC => self.write_bc(value),
-            Register16::DE => self.write_de(value),
-            Register16::HL => self.write_hl(value),
-            Register16::SP => self.sp = value,
-            _ => unreachable!(),
+    pub fn set_flag(&mut self, flag: Flag, state: bool) {
+        match flag {
+            Flag::Z => {
+                self.f.zero = state;
+            }
+            Flag::N => {
+                self.f.subtract = state;
+            }
+            Flag::H => {
+                self.f.half_carry = state;
+            }
+            Flag::C => {
+                self.f.carry = state;
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::registers::RegisterFlags;
-
     use super::Registers;
+    use crate::registers::RegFlags;
+    use crate::utils;
 
     #[test]
     fn test_split_hi_lo() {
         let value: u16 = 0x1234;
 
-        let (hi, lo) = Registers::split_hi_lo(value);
+        let (hi, lo) = utils::split_hi_lo(value);
 
         assert_eq!(hi, 0x12);
         assert_eq!(lo, 0x34);
@@ -223,29 +240,5 @@ mod tests {
         let de = reg.read_de();
 
         assert_eq!(de, 0x1234)
-    }
-
-    #[test]
-    fn test_write_af() {
-        //Adds a 1 to the second bit of the flags byte to make sure only the 4 right bits are set
-        let value: u16 = 0b00000001_00010010;
-        let mut reg = Registers::new();
-
-        reg.write_af(value);
-
-        assert_eq!(reg.a, 0b00000001);
-        assert_eq!(reg.f, RegisterFlags::C);
-    }
-
-    #[test]
-    fn test_read_af() {
-        let mut reg = Registers::new();
-
-        reg.a = 1;
-        reg.f = RegisterFlags::Z;
-
-        let af = reg.read_af();
-
-        assert_eq!(af, 0b00000001_10000000);
     }
 }
